@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import * as XLSX from "xlsx";
-import { jsPDF } from "jspdf";
 import {
   Activity,
   Building2,
@@ -13,9 +12,7 @@ import {
   FileImage,
   FileJson,
   FileSpreadsheet,
-  FileDown,
   Image as ImageIcon,
-  LoaderCircle,
   MoreHorizontal,
   PlusCircle,
   RotateCcw,
@@ -374,87 +371,6 @@ function GaugeMeter({ percent }: { percent: number }) {
   );
 }
 
-function safeFileName(value: string) {
-  return value.trim().replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
-}
-
-function createDepartmentPdf(record: DepartmentLeaveRecord, departments: DepartmentLeaveItem[]) {
-  if (departments.length === 0) {
-    throw new Error("Select at least one department to create a PDF.");
-  }
-
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const left = 18;
-
-  departments.forEach((department, index) => {
-    if (index > 0) pdf.addPage();
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
-    pdf.text("Department Leave Report", left, 24);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.setTextColor(95, 95, 95);
-    pdf.text(record.title, left, 32, { maxWidth: pageWidth - left * 2 });
-    pdf.text(`Record date: ${record.recordDate}`, left, 39);
-
-    pdf.setDrawColor(225, 225, 225);
-    pdf.line(left, 46, pageWidth - left, 46);
-
-    pdf.setTextColor(30, 30, 30);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(15);
-    pdf.text(department.department, left, 59, { maxWidth: pageWidth - left * 2 });
-
-    const balance = department.totalAllocatedLeaves != null
-      ? `${fmt(department.totalBalanceLeaves)} / ${fmt(department.totalAllocatedLeaves)}`
-      : fmt(department.totalBalanceLeaves);
-    const rows: Array<[string, string]> = [
-      ["Employees", fmt(department.employeeCount)],
-      ["Leave balance (remaining / allocated)", balance],
-      ["Leave taken", fmt(department.totalLeaveTaken)],
-      ["Half days", fmt(department.totalHalfDay)],
-      ["Late marks", fmt(department.totalLateMark)],
-      ["Waived late marks", fmt(department.totalLateMarkWaived)],
-      ["Unpaid leave", fmt(department.totalUnpaidLeave)],
-      ["Leave percentage", `${department.leavePercentage.toFixed(2)}%`],
-    ];
-
-    let y = 73;
-    pdf.setFontSize(11);
-    rows.forEach(([label, value], rowIndex) => {
-      if (rowIndex % 2 === 0) {
-        pdf.setFillColor(248, 249, 250);
-        pdf.rect(left, y - 6, pageWidth - left * 2, 10, "F");
-      }
-      pdf.setTextColor(75, 75, 75);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(label, left + 3, y);
-      pdf.setTextColor(30, 30, 30);
-      pdf.setFont("helvetica", "bold");
-      pdf.text(value, pageWidth - left - 3, y, { align: "right" });
-      y += 11;
-    });
-
-    pdf.setDrawColor(225, 225, 225);
-    pdf.line(left, pageHeight - 22, pageWidth - left, pageHeight - 22);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    pdf.setTextColor(125, 125, 125);
-    pdf.text("CONFIDENTIAL HR DOCUMENT", left, pageHeight - 15);
-    pdf.text(`${index + 1} / ${departments.length}`, pageWidth - left, pageHeight - 15, { align: "right" });
-  });
-
-  const suffix = departments.length === 1
-    ? safeFileName(departments[0].department)
-    : departments.length === record.departments.length
-      ? "All_Departments"
-      : `${departments.length}_Departments`;
-  pdf.save(`${safeFileName(record.title)}_${suffix}.pdf`);
-}
-
 function StatRow({
   label,
   value,
@@ -496,19 +412,7 @@ function MicroKpi({ label, value, icon }: { label: string; value: string | numbe
   );
 }
 
-function DepartmentCard({
-  dept,
-  selected,
-  onSelect,
-  onDownloadPdf,
-  pdfLoading,
-}: {
-  dept: DepartmentLeaveItem;
-  selected: boolean;
-  onSelect: (department: string, selected: boolean) => void;
-  onDownloadPdf: () => void;
-  pdfLoading: boolean;
-}) {
+function DepartmentCard({ dept }: { dept: DepartmentLeaveItem }) {
   const pct = dept.leavePercentage;
   const color = percentColor(pct);
   const tone = percentTone(pct);
@@ -527,24 +431,12 @@ function DepartmentCard({
             </h3>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          {dept.totalLeaveTaken === 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#f0fdf4] px-2 py-0.5 text-[10.5px] font-medium text-[#166534] ring-1 ring-inset ring-[#bbf7d0]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#17a34a]" />
-              Zero Leave
-            </span>
-          )}
-          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#666666]">
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={(event) => onSelect(dept.department, event.target.checked)}
-              aria-label={`Select ${dept.department} for bulk PDF`}
-              className="accent-[#171717]"
-            />
-            Select
-          </label>
-        </div>
+        {dept.totalLeaveTaken === 0 && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#f0fdf4] px-2 py-0.5 text-[10.5px] font-medium text-[#166534] ring-1 ring-inset ring-[#bbf7d0]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#17a34a]" />
+            Zero Leave
+          </span>
+        )}
       </div>
 
       <div className="mb-4">
@@ -589,15 +481,6 @@ function DepartmentCard({
           />
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onDownloadPdf}
-        disabled={pdfLoading}
-        className="mt-4 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#ededed] bg-white px-2.5 text-[11.5px] font-medium text-[#171717] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {pdfLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-        Download PDF
-      </button>
     </div>
   );
 }
@@ -905,9 +788,6 @@ export default function DepartmentLeavesPage() {
   const [isCmdOpen, setIsCmdOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [pdfError, setPdfError] = useState<string | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const exportRegionRef = useRef<HTMLDivElement>(null);
 
@@ -1027,27 +907,6 @@ export default function DepartmentLeavesPage() {
     await loadRecords();
   }
 
-  function setDepartmentSelected(department: string, selected: boolean) {
-    setSelectedDepartments((current) =>
-      selected
-        ? current.includes(department) ? current : [...current, department]
-        : current.filter((name) => name !== department),
-    );
-    setPdfError(null);
-  }
-
-  function handleDepartmentPdfDownload(departments: DepartmentLeaveItem[]) {
-    setPdfError(null);
-    setPdfLoading(true);
-    try {
-      createDepartmentPdf(activeRecord, departments);
-    } catch (error) {
-      setPdfError(error instanceof Error ? error.message : "Could not generate the department PDF.");
-    } finally {
-      setPdfLoading(false);
-    }
-  }
-
   /* ── export ── */
   async function handleExport(type: ExportType) {
     const base = activeRecord.title.replace(/[^\w-]+/g, "_");
@@ -1091,10 +950,6 @@ export default function DepartmentLeavesPage() {
       action: () => setSelectedRecordId(r.id),
     })),
   ];
-
-  const selectedForActiveRecord = activeRecord.departments.filter((department) =>
-    selectedDepartments.includes(department.department),
-  );
 
   const pageMeta = {
     eyebrow: "",
@@ -1164,53 +1019,6 @@ export default function DepartmentLeavesPage() {
         </div>
       }
     >
-      <section className="flex flex-col gap-3 rounded-xl border border-[#ededed] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-[13px] font-semibold text-[#171717]">Department PDF downloads</h3>
-          <p className="mt-1 text-[12px] text-[#666666]">
-            Download a department report, or combine selected/all departments into one PDF.
-          </p>
-          {pdfError && (
-            <p role="alert" className="mt-2 text-[12px] font-medium text-red-700">{pdfError}</p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const allSelected = selectedForActiveRecord.length === activeRecord.departments.length;
-              setSelectedDepartments(allSelected ? [] : activeRecord.departments.map((dept) => dept.department));
-              setPdfError(null);
-            }}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-[#ededed] bg-white px-3 text-[12px] font-medium text-[#171717] transition hover:bg-[#fafafa]"
-          >
-            {selectedForActiveRecord.length === activeRecord.departments.length ? "Clear selection" : "Select all"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              handleDepartmentPdfDownload(
-                activeRecord.departments.filter((dept) => selectedDepartments.includes(dept.department)),
-              )
-            }
-            disabled={pdfLoading || selectedDepartments.length === 0}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#171717] px-3 text-[12px] font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pdfLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-            Download selected ({selectedForActiveRecord.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDepartmentPdfDownload(activeRecord.departments)}
-            disabled={pdfLoading || activeRecord.departments.length === 0}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#ededed] bg-white px-3 text-[12px] font-medium text-[#171717] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FileDown className="h-3.5 w-3.5" />
-            Download all ({activeRecord.departments.length})
-          </button>
-        </div>
-      </section>
-
       {/* Everything inside this ref is what PNG / SVG export captures */}
       <div ref={exportRegionRef} className="space-y-6">
         <OverallCard record={activeRecord} />
@@ -1224,14 +1032,7 @@ export default function DepartmentLeavesPage() {
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {activeRecord.departments.map((d) => (
-              <DepartmentCard
-                key={d.department}
-                dept={d}
-                selected={selectedDepartments.includes(d.department)}
-                onSelect={setDepartmentSelected}
-                onDownloadPdf={() => handleDepartmentPdfDownload([d])}
-                pdfLoading={pdfLoading}
-              />
+              <DepartmentCard key={d.department} dept={d} />
             ))}
           </div>
         </section>
