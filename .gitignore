@@ -1,0 +1,6 @@
+.vercel
+.env*
+/node_modules/
+/.next/
+/tsconfig.tsbuildinfo
+/Sample Leave Tracker 2026-27.xlsx
