@@ -440,6 +440,7 @@ export function EmployeeReportCard({
   snapshot,
   weeklyBreakdown,
   events,
+  reportId = "employee-report-card",
 }: {
   company: CompanySettings;
   employee: Employee;
@@ -455,6 +456,7 @@ export function EmployeeReportCard({
   };
   weeklyBreakdown: WeeklyRow[];
   events: EventRowInput[];
+  reportId?: string;
 }) {
   const trendData = weeklyBreakdown.map((w, i) => {
     const { weekName } = extractWeekAndPeriod(w.weekLabel, i);
@@ -590,7 +592,7 @@ export function EmployeeReportCard({
 
       {/* Printable Paper Canvas */}
       <article
-        id="employee-report-card"
+        id={reportId}
         className="a4-page mx-auto w-full max-w-[210mm] bg-white font-sans text-slate-800 shadow-[0_10px_40px_-10px_rgba(15,23,42,0.15)] ring-1 ring-slate-100 print:shadow-none print:ring-0"
         style={{
           padding: "12mm 12mm",

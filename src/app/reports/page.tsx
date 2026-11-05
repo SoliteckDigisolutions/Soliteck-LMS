@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import type { ColDef } from "ag-grid-community";
 import { Page } from "@/components/ui/Page";
 import { EmployeeBalancesGrid } from "@/components/dashboard/EmployeeBalancesGrid";
+import { BulkEmployeeReportsPdf } from "@/components/reports/BulkEmployeeReportsPdf";
 import { AgGridTable } from "@/components/ui/AgGridTable";
 import { getMonthEvents, getMonthSummaries, getReportFilters } from "@/lib/data";
 import type { EventRowInput } from "@/lib/leave/types";
@@ -304,6 +305,16 @@ function ReportsContent() {
         ? `${selectedYear} — All Months`
         : monthsInSelectedYear.find((m) => m.key === selectedYearMonth)?.label ?? selectedYearMonth
       : summaries[0]?.monthLabel ?? (months.length > 0 ? "Select a month" : "No data");
+  const reportMonthKeys =
+    viewMode === "monthly"
+      ? selectedMonth
+        ? [selectedMonth]
+        : []
+      : selectedYearMonth === ALL_MONTHS_KEY
+        ? monthsInSelectedYear.map((month) => month.key)
+        : selectedYearMonth
+          ? [selectedYearMonth]
+          : [];
 
   if (!mounted) {
     return (
@@ -423,7 +434,7 @@ function ReportsContent() {
     >
       <div className="space-y-8">
         <section className="rounded-xl border border-[#e5e7eb] bg-white p-6 sm:p-7 shadow-[0_1px_3px_0_rgba(0,0,0,0.05)]">
-          <div className="mb-5 flex flex-col gap-1 border-b border-[#f3f4f6] pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-5 flex flex-col gap-3 border-b border-[#f3f4f6] pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6b7280]">
                 {viewMode === "yearly"
@@ -436,6 +447,11 @@ function ReportsContent() {
                 {activeSummaryLabel}
               </h2>
             </div>
+            <BulkEmployeeReportsPdf
+              summaries={summaries}
+              monthKeys={reportMonthKeys}
+              periodLabel={activeSummaryLabel}
+            />
           </div>
 
           {/* Quick-switch month chips in Yearly view */}
